@@ -307,3 +307,101 @@ ApplicationContext applicationContext
 
 ---
 
+# 싱글톤 컨테이너
+## 웹 애플리케이션 이해
+![](https://velog.velcdn.com/images/pipiolo/post/e20124b1-bfa1-47a4-96f9-a96ba9e79a33/image.png)
+
+* 웹 애플리케이션은 여러 고객이 동시에 요청한다.
+* 스프링이 없는 DI 컨테이너는 요청이 들어올 때 마다 객체를 생성한다. 
+  👉 메모리 낭비 및 심각한 오류 발생
+* 객체가 딱 1번만 생성되고 공휴하도록 설계한다. 👉 **싱글톤 패턴**
+
+## 싱글톤 패턴
+```java
+public class Singleton {
+
+    private static final Singleton instance = new Singleton();
+    
+    private Singleton() {
+    }
+    
+    public static Singleton getInstance() {
+        return this.instance;
+    }
+}
+```
+
+* 클래스의 인스턴스가 딱 1개만 생성되는 것을 보장한다.
+  * private 생성자를 통해 외부에서 임의로 new 키워드를 사용하지 못 한다.
+* 오직 `getInstance()`를 통해서만 인스턴스를 조회할 수 있다. 항상 같은 인스턴스를 보장한다.
+
+### 문제점
+* 구현 코드 자체가 많다.
+* DIP, OCP 위반이다.
+* 테스트 하기 어렵다.
+* 자식 클래스를 만들기 어렵다.
+* 유연성이 떨어진다.
+
+## 싱글톤 컨테이너
+![](https://velog.velcdn.com/images/pipiolo/post/75959149-c69e-4f1d-950c-8e279425c475/image.png)
+
+* 스프링 컨테이너는 싱글톤 컨테이너 역할을 한다.
+  * 싱글톤 객체를 생성하고 관리하는 기능을 싱글톤 레지스트리라 한다.
+* 싱글톤 패턴의 모든 단점을 해결하고 객체 인스턴스를 1개만 보장한다.
+* 고객이 요청이 들어올 때 마다 이미 만들어진 객체를 공유해서 효율적으로 재사용한다.
+
+### 무상태 설계
+* 여러 클라이언트가 하나의 객체 인스턴스를 공유하기 때문에 상태를 유지(`stateful`)하게 설계하면 안 된다.
+* 무상태(`stateless`)로 설계해야 한다.
+  * 특정 클라이언트에 의존적인 필드가 있으면 안 된다.
+  * 특정 클라이언트가 값을 변경하면 안 된다.
+    * 읽기만 지원해야 한다.
+  * 공유되지 않는 지역변수, 파라미터, `ThreadLocal`을 사용해야 한다.
+* 스프링 빈은 <span style="color: #FF8C00">항상 무상태(`stateless`)로 설계하자.</span>
+
+> **참고**
+> 스프링의 기본 빈 등록 방식은 싱글톤이지만, 싱글톤 방식만 지원하는 것은 아니다.
+
+### 스프링의 싱글톤
+```java
+@Configuration
+public class AppConfig {
+
+    @Bean
+    public MemberService memberService() {
+        return new MemberServiceImpl();
+    }
+}
+```
+
+![](https://velog.velcdn.com/images/pipiolo/post/b4a9e857-0abd-403e-b425-ac01983ccb0a/image.png)
+
+* 스프링은 싱글톤을 보장하기 위해 클래스의 바이트코드를 조작하는 라이브러리 `CGLIB`를 사용한다.
+  * `@Configuration`이 붙은 `AppConfig` 클래스를 조작한다.
+* `AppConfig` 스프링 빈의 클래스 정보를 출력하면, `class hello.spring.AppConfig`가 아니다.
+  * `class hello.spring.AppConfig$$EnhancerBySpringCGLIB$$bd479d70`
+  * `CGLIB` 바이트코드 조작 라이브러리를 통해 `AppConfig` 클래스를 상속한 임의의 다른 클래스를 스프링 빈으로 등록했다.
+
+#### AppConfig@CGLIB
+```java
+@Bean
+public MemberService memberService() {
+    
+    if (memberService가 이미 스프링 컨테이너에 등록되어 있으면) {
+        return 스프링 컨테이너에서 반환;
+    }
+    else {
+        memberService를 생성하고 스프링 컨테이너 등록
+        return 스프링 빈 반환;
+    }
+}
+```
+
+* 스프링 빈이 존재하면 스프링 빈을 반환하고, 없으면 객체를 생성해서 스프링 빈으로 등록 및 반환한다.
+* 싱글톤이 보장된다.
+
+> **참고**
+> `@Bean`만 사용하면 스프링 빈으로 등록되지만, 싱글톤을 보장하지 않는다. 스프링의 싱글톤은 `@Configuration`이 담당한다. 스프링 설정 정보는 <span style="color: #FF8C00">항상 `@Configuration` 사용하자.</span>
+
+---
+
