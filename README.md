@@ -227,3 +227,83 @@ public class AppConfig {
 * 기존에는 개발자가 직접 자바 코드로 모든 것을 했다면, 이제는 스프링 컨테이너에 객체를 등록하고 스프링 컨테이너를 통해서 스프링 빈을 찾아 사용한다.
 
 ---
+
+# 스프링 컨테이너와 스프링 빈
+## 스프링 컨테이너
+```java
+ApplicationContext applicationContext
+		= new AnnotationConfigApplicationContext(AppConfig.class);
+```
+
+* `ApplicationContext`를 스프링 컨테이너라 한다.
+* 스프링 컨테이너는 XML 기반으로 만들 수 있고 애노테이션 기반의 자바 설정 클래스로도 만들 수 있다.
+  * `ApplicationContext`는 인터페이스이다.
+  * 자바 설정 클래스 기반으로 만드는 스프링 컨테이너 구현체가 `AnnotationConfigApplicationContext`이다.
+  
+> **참고**
+> `BeanFactory`, `ApplicationContext` 모두 스프링 컨테이너라 한다. 일반적으로 스프링 컨테이너는 `ApplicationContext`을 말한다.
+  
+![](https://velog.velcdn.com/images/pipiolo/post/7709c338-fe2c-4b7f-946d-46ffd3103789/image.png)
+
+![](https://velog.velcdn.com/images/pipiolo/post/f8528f02-87f7-46a9-9904-239cad69f1f8/image.png)
+
+* `new AnnotationConfigApplicationContext(AppConfig.class)`
+* `AppConfig.class` 구성 정보를 통해 스프링 컨테이너를 생성한다.
+* 스프링 컨테이너는 설정 클래스 정보를 바탕으로 스프링 빈을 등록한다.
+  * 스프링 빈 이름은 메서드 이름을 사용한다.
+  * `@Bean(name = "discountPolicy2")`로 빈 이름을 지정할 수 있다.
+* 스프링 컨테이너는 설정 정보를 참고해서 의존관계를 주입한다.
+
+> **참고**
+> 스프링 빈 이름은 항상 다름 이름을 부여해야 한다. 같은 이름을 부여하면, 기존 빈을 덮어쓰거나 오류가 발생한다.
+
+> **참고**
+> 스프링 빈은 생성하고 의존관계를 주입하는 단계로 나뉘어져 있다. 하지만, 자바 코드로 스프링 빈을 등록하면 생성자를 호출하면서 의존관계 주입도 한 번에 처리된다.
+
+## BeanFactory와 ApplicationContext
+### BeanFactory
+![](https://velog.velcdn.com/images/pipiolo/post/bfde0e7f-0c45-425d-84de-185333a9c735/image.png)
+
+* `BeanFactory`는 스프링 컨테이너의 최상위 인터페이스이다.
+* 스프링 빈을 조회하고 관리하는 역할을 한다.
+  * 스프링 빈을 조회하는 `getBean()`을 제공한다.
+
+### ApplicationContext
+![](https://velog.velcdn.com/images/pipiolo/post/ab7944ae-068d-4d42-b84a-fb59841d3f9c/image.png)
+
+* `ApplicationContext`는 `BeanFactory`를 상속한다.
+  * `ApplicationContext`는 스프링 빈 관리와 편리한 부가 기능을 제공한다.
+  * `BeanFactory`를 직접 사용할 일은 없다. 
+* `MessageSource`를 활용한 국제화 기능
+  * 한국 👉 한국어, 미국 👉 영어를 출력한다.
+* 환경 변수, `EnvironmentCapable`
+  * 로컬, 개발, 운영 등 다양한 환경을 분리해서 만들 수 있다.
+* 애플리케이션 이벤트, `ApplicationEventPublisher`
+  * 이벤트를 발행하고 구독하는 모델을 지원한다.
+* 편리한 리소스 조회, `ResourceLoader`
+  * 파일, 클래스 패스 등 리소스를 편리하게 조회한다.
+  
+![](https://velog.velcdn.com/images/pipiolo/post/2889880d-e946-4210-a448-acf1dd6fa644/image.png)
+
+* 스프링 컨테이너는 다양한 형식의 설정 정보를 받을 수 있다.
+* `AnnotationConfigApplicationContext` 클래스는 자바 코드 설정 정보를 받는다.
+* `ApplicationContext` 인터페이스의 구현체를 `GenericXmlApplicationContext`로 선택하고 `appConfig.xml` 설정 정보를 넘기면, XML 설정 기반 스프링 컨테이너를 생성할 수 있다.
+  
+## 스프링 빈
+### 스프링 빈 설정 메타 정보 (BeanDefinition)
+![](https://velog.velcdn.com/images/pipiolo/post/f3e243e3-8fba-44b4-925c-e333ffc082c0/image.png)
+
+![](https://velog.velcdn.com/images/pipiolo/post/921d77ff-63f6-4090-bfbd-b2bc42964c22/image.png)
+
+* `BeanDefinition`을 빈 설정 메타 정보라 한다.
+* 역할과 구현의 분리
+  * 스프링 컨테이너는 자바 코드인지, XML인지 몰라도 된다. 오직 `BeanDefinition`만 알면 된다.
+  * 덕분에 다양한 설정 형식을 지원한다.
+* 스프링 컨테이너는 `BeanDefinition`을 기반으로 스프링 빈을 생성한다.
+* `xxxBeanDefinitionReader`를 통해 새로운 설정 형식이 추가되어도, 클아이언트의 코드 변경없이 `BeanDefinition`을 기반으로 스프링 빈을 생성할 수 있다.
+
+> **참고**
+> `BeanDefinition`을 직접 생성해서 스프링 컨테이너에 등록할 수 있다. 하지만, `BeanDefinition`을 직접 정의하거나 사용할 일은 없다.
+
+---
+
