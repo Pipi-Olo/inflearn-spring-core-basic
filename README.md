@@ -405,3 +405,68 @@ public MemberService memberService() {
 
 ---
 
+# 컴포넌트 스캔
+## 자동 스프링 빈 등록
+```java
+@ComponentScan
+@Configuration
+public class AutoAppConfig {
+}
+
+@Component
+public class MemberServiceImpl implements MemberService {
+
+	private final MemberRepository memberRepository;
+    
+    @Autowired
+    public MemberServiceImpl(MemberRepository memberRepository) {
+    	this.memberRepository = memberRepository;
+    }
+}
+```
+
+* 스프링은 설정 정보가 없어도 자동으로 스프링 빈으로 등록하는 컴포넌트 스캔 기능(`@ComponentScan`)을 제공한다.
+  * 의존관계를 자동으로 주입하는 `@Autowired` 기능도 제공한다.
+* 컴포넌트 스캔은 `@Componet` 애노테이션이 붙은 클래스를 찾아서 스프링 빈으로 등록한다.
+  * 설정 정보가 없기 때문에 클래스 안에서 의존관계 주입을 해결해야 한다.
+  * `@Autowired`는 의존관계를 자동으로 주입해준다.
+ 
+## 컴포넌트 스캔 시작 위치
+```java
+@ComponentScan(
+		basePackages = "hello.spring"
+)
+```
+
+* `basePackages` 👉 탐색할 패키지 시작 위치를 지정한다. 해당 패키지를 포함한 하위 패키지를 모두 탐색한다.
+  * 지정하지 않으면, `@ComponentScan`이 붙은 클래스의 패키지가 시작 위치가 된다.
+* 설정 정보 클래스의 위치를 프로젝트 최상단에 두는 것이 좋다.
+
+> **참고**
+> 스프링 부트의 `@SpringBootApllication`안에 `@ComponentScan`이 있다. `@SpringBootApllication`는 프로젝트 시작 루트에 위치하는 것이 기본이다.
+
+## 컴포넌트 스캔 대상
+
+* `@Component` 👉 컴포넌트 스캔 대상이 된다. 사실 다른 애노테이션들은 `@Component`를 포함하고 있기 때문에 컴포넌트 스캔의 대상이 되는 것이다.
+* `@Configuration` 👉 스프링 설정 정보로 인식하고 스프링 빈이 싱글톤으로 유지하도록 한다.
+* `@Controller` 👉 스프링 MVC 컨트롤러로 인식한다.
+* `@Service` 👉 특별한 처리를 하지 않는다.
+* `@Repository` 👉 스프링 데이터 접근 계층으로 인식하고 데이터 계층 에외를 스프링 예외로 변환한다.
+
+> **참고**
+> 사실 자바 애노테이션은 상속 관계가 없다. 스프링이 지원하는 기능이다.
+
+## 빈 중복 등록
+
+### 자동 빈 등록 vs 자동 빈 등록
+* 컴포넌트 스캔에 의한 자동 등록 스프링 빈의 이름이 중복되면, `ConflictBeanDefinitionExcepion` 예외를 발생한다.
+
+### 자동 빈 등록 vs 수동 빈 등록
+* 수동 빈 등록이 우선권을 가진다.
+  * 수동 빈이 자동 빈을 오버라이딩 한다.
+  * 개발자가 의도적으로 이름을 중복시키는 경우는 거의 없다.
+* 개발자의 의도와 다르게 이름이 중복되는 경우가 대부분이다.
+  * 정말 잡기 어려운 버그가 만들어진다.
+  * 이를 방지하고자 **스프링 부트는 예외를 발생시킨다.**
+  
+---
