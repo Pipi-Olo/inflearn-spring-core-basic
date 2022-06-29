@@ -704,3 +704,107 @@ public class OrderServiceImpl implements OrderService {
 > 애플리케이션에 광범위하게 영향을 주는 기술 지원 객체는 수동 빈 등록으로 설정 정보를 명확하게 하는 것이 좋다. 다형성을 적극 활용하는 비지니스 로직일 경우, 수동 등록도 고민해보자. 그 외에는 자동 빈 등록을 사용하자.
 
 ---
+
+
+# 빈 생명주기 콜백
+
+## 스프링 빈 라이프사이클
+* 스프링 컨테이너 생성 → 스프링 빈 생성 → 의존관계 주입 → 초기화 콜백 → 사용 → 소멸전 콜백 → 스프링 종료
+  * 초기화 콜백 👉 빈 생성 및 의존관계 주입 완료 후, 호출
+  * 소멸전 콜백 👉 빈이 소멸되기 직전에 호출
+* 스프링 빈 생명주기 콜백
+  * 인터페이스 (InitializingBean, DisposableBean)
+  * 설정 정보에 초기화, 종료 메서드 지정
+  * `@PostConstruct`, `@PreDestroy`
+
+> **참고**
+> 객체의 생성과 초기화를 분리하자. 생성자는 파라미터를 받고 메모리를 할당해서 객체를 생성하는 책임을 가진다. 초기화는 생성된 값들을 활용해서 외부 커넥션 연결 등 무거운 동작을 수행한다. 객체 생성과 초기화를 명확하게 나누는 것이 유지보수 관점에서 좋다.
+
+> **참고**
+> 스프링 컨테이너의 시작과 종료까지 생존하는 빈도 있지만, 생명 주기가 짧은 빈들도 있다. 해당 빈은 종료되기 직전에 소멸전 콜백이 일어난다.
+
+## 인터페이스 (InitializingBean, DisposableBean)
+```java
+public class Network implements InitializingBean, DisposableBean {
+ 	
+    private String url;
+    
+    @Override
+    public void afterPropertieswSet() throws Exception{
+    	// 초기화 콜백
+    }
+    
+    @Override
+    public void destroy() throws Exception {
+        // 소멸전 콜백
+    }
+}
+```
+
+* `InitializingBean`은 `afterPropertieswSet()` 메서드로 초기화한다.
+* `DisposableBean`은 `destroy()` 메서드로 소멸을 지원한다.
+* 초기화, 소멸 인퍼테이스 단점
+  * 스프링 전용 인터페이스이다. 해당 클래스는 스프링 전용 인터페이스에 의존한다.
+  * 초기화, 소멸 메소드의 이름을 변경할 수 없다.
+  * 코드를 고칠 수 없는 외부 라이브러리에 적용할 수 없다.
+* 현재는 사용되지 않는다. 사용하지 말자.
+
+## 빈 등록 초기화, 소멸 메서드 지정
+```java
+@Configuration
+public class NetworkConfig {
+
+	@Bean(initMethod = "init", destroyMethod = "close")
+	public Network network() {
+    	return new Network();
+    }
+}
+
+public class Network {
+ 	
+    private String url;
+    
+    public void init() {
+    	// 초기화 콜백
+    }
+    
+    public void close() {
+        // 소멸전 콜백
+    }
+}
+```
+
+* 메서드 이름을 자유롭게 줄 수 있다.
+* 스프링 전용 인터페이스에 의존하지 않는다.
+* 외부 라이브러리에도 초기화, 종료 메서드를 적용할 수 있다.
+
+> **참고**
+> `@Bean`의 `destroyMethod`속성은 종료 메서드 추론 기능을 제공한다. `@Bean`의 `destroyMethod`속성은 기본 값이 추론(`inferred`)이다. 대부분의 라이브러리는 `close`, `shutdown`이라는 이름의 종료 메소드를 사용한다. 이 추론 기능은 소멸전 콜백 시점에 `close`, `shutdown`라는 이름의 메소드를 자동으로 호출해준다. 스프링 빈으로 등록하면 종료 메서드는 따로 지정하지 않아도 잘 동작한다.
+> `destroyMethod = ""`을 하면, 추론 기능이 동작하지 않는다.
+ 
+ ## @PostConstruct, @PreDestroy
+ ```java
+ public class Network {
+ 	
+    private String url;
+    
+    @PostConstruct
+    public void init() {
+    	// 초기화 콜백
+    }
+    
+    @PreDestroy
+    public void close() {
+        // 소멸전 콜백
+    }
+}
+```
+
+* 스프링 종속적인 기술이 아닌, 자바 표준 기술이다.
+  * 스프링에서 권장하는 방법이다.
+  * 애노테이션 하나로 매우 편리하게 동작한다.
+* 외부 라이브러리에는 적용되지 않는다.
+  * 외부 라이브러리에 적용할 때는 `@Bean`의 기능을 사용하자.
+  
+---
+
