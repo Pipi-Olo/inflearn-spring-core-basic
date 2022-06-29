@@ -808,3 +808,182 @@ public class Network {
   
 ---
 
+# 빈 스코프
+```java
+@Scope("prototype")
+@Component
+public class Bean {}
+```
+
+```java
+@Configuration
+public class AppConfig {
+
+	@Scope("prototype")
+	@Bean
+	PrototypeBean Bean() {
+    	return new Bean();
+	}
+}
+```
+
+* 빈 스코프란 빈이 존재할 수 있는 범위를 말한다.
+* 싱글톤 👉 기본 스코프로 스프링 컨테이너의 시작과 종료까지 유지되는 가장 넓은 범위의 스코프이다.
+* 프로토 타입 👉 스프링 컨테이너는 빈의 생성과 의존관계 주입까지만 관여한다. 그 이후는 관리하지 않는다.
+  * 초기화 메소드까지 호출해준다. 종료 메소드는 호출되지 않는다.
+* 웹 관련 스코프
+  * request 👉 웹 요청이 들어오고 나갈 때까지 유지되는 스코프이다.
+  * session 👉 웹 세션이 생성되고 종료될 때까지 유지되는 스코프이다.
+  * application 👉 웹의 서블릿 컨텍스트와 같은 범위로 유지되는 스코프이다.
+  
+## 프로토 타입 스코프
+![](https://velog.velcdn.com/images/pipiolo/post/0a06fd19-4a1a-4496-b549-36dd00728673/image.png)
+
+* 프로토 타입 스프링 빈을 조회하면, 스프링 컨테이너는 항상 새로운 인스턴스를 생성해서 반환한다.
+* 스프링 컨테이너는 프로토 타입 빈 생성, 의존관계 주입 및 초기화까지만 처리한다. 그 이후는 관리하지 않는다.
+  * 프로토 타입 빈을 관리할 책임은 클라이언트에 있다.
+  * `@PreDestory` 등 종료 메서드가 호출되지 않는다. 클라이언트가 종료 메서드를 실행해야 한다.
+  
+### 싱글톤과 프로토 타입
+* 싱글톤
+  * 스프링 컨테이너 생성 시점에 초기화 메서드가 실행된다
+  * 하나의 인스턴스를 공유해서 사용한다.
+  * 스프링 컨테이너가 종료될 때 종료 메서드가 실행된다
+* 프로토 타입
+  * 스프링 컨테이너에서 빈을 조회할 때 생성 및 초기화 메서드가 실된다.  
+  * 스프링 컨테이너에 요청할 때 마다 새로 생성된다.
+  * 스프링 컨테이너는 빈 생생, 의존관계 주입 및 초기화까지만 관여한다. 그 이후는 관리하지 않는다.
+  
+### 싱글톤 빈에서 프로토 타입 빈 사용 - 문제점
+![](https://velog.velcdn.com/images/pipiolo/post/50f368ef-8b9e-4103-82c5-073f1b12f6c8/image.png)
+
+* `ClientBean` 싱글톤 빈이 의존관계 주입으로 `PrototypeBean` 프로토 타입 빈을 주입받는다.
+* 개발자의 의도와 다르게 `PrototypeBean`이 **싱글톤 빈과 함께 계속 유지된다.**
+
+> **참고**
+> `ClientBean` 내부에 가지고 있는 `PrototypeBean`은 이미 주입이 끝난 빈이다. 스프링 컨테이너에 요청을 해서 새로운 빈이 생성되는 것이지, 프로토 타입 빈을 사용할 때마다 생성되는 것이 아니다. `PrototypeBean` 관리는 클라이언트인 `ClientBean`이 담당한다.
+
+### Provider - 해결책
+* 싱글톤 빈이 프로토 타입 빈을 사용할 때 마다 스프링 컨테이너에 요청하면 된다.
+  * 사용할 때 마다 항상 새로운 프로토 타입 빈을 받을 수 있다.
+* 의존 관계를 주입 받는 것(`DI`)이 아니라, 직접 필요한 의존 관계를 찾는 것을 Dependency Lookup(`DL`) 의존관계 조회라 한다.
+
+#### ObjectFactory, ObjectProvider
+```java
+@Autowired
+private ObjectProvider<PrototypeBean> prototypeBeanProvider;
+
+public void logic() {
+	PrototypeBean prototypeBean = prototypeBeanProvider.getObject();
+}
+```
+
+* `prototypeBeanProvider.getObject()` 항상 새로운 프로토 타입이 빈을 반환한다.
+  * 내부에서 스프링 컨테이너를 통해 빈을 찾아서 반환한다. (`DL`) 
+* `ObjectFactory`을 상속해서 편의 기능을 추가한 `ObjectProvider` 사용하자
+
+#### JSR-330 Provider
+```java
+@Autowired
+private Provider<PrototypeBean> provider;
+
+public void logic() {
+	PrototypeBean prototypeBean = provider.get();
+}
+```
+
+* `provider.get()` 항상 새로운 프로토 타입이 빈을 반환한다.
+  * 내부에서 스프링 컨테이너를 통해 빈을 찾아서 반환한다. (`DL`)
+  * `get()` 메서드 하나로 기능이 매우 단순하다.
+* 자바 표준이다.
+  * 단위 테스트를 하기 쉽다.
+  
+> **정리**
+> 매번 사용할 때 마다 의존관계 주입이 완료된 새로운 객체가 필요할 때 프로토 타입 빈을 사용한다. 프로토 타입 빈을 직접 사용하는 일은 매우 드물다. 대부분 싱글톤 빈으로 다 해결 가능하다.
+> `ObjectProvider`, `Provider`는 `DL`이 필요한 경우 언제든지 사용할 수 있다.
+
+> **참고**
+> 자바 표준과 스프링 기능이 겹칠 때가 많다. 스프링이 더 다양하고 편리한 기능을 제공하기 때문에 다른 프레임워크를 사용할 계획이 없다면, 스프링이 제공하는 기능을 사용하자.
+
+## 웹 스코프
+* 웹 환경에서만 동작한다.
+* 스프링 컨테이너가 해당 스코프의 종료시점까지 관리한다.
+  * 종료 메서드가 호출된다.
+* 종류
+  * request 
+    👉 HTTP 요청이 들어오고 나갈 때까지 유지되는 스코프이다. 
+    👉 각각의 HTTP 요청마다 별도의 빈이 생성되고 관리된다.
+  * session 👉 HTTP Session과 동일한 생명주기를 지닌 스코프이다.
+  * application 👉 서블릿 컨텍스트와 동일한 생명주기를 지닌 스코프이다.
+  * websocket 👉 웹 소켓과 동일한 생명주기를 지닌 스코프이다.
+
+### Request 스코프
+```java
+@Scope(value = "request")
+@Component
+public class MyLogger {
+
+	private String uuid;
+    private String requestURL;
+    
+    @PostConstruct
+    public void init() {
+    	uuid = UUID.randomUUID().toString();
+    }
+    
+    @PreDestroy
+    public void close() {
+    	
+    }
+}
+```
+
+![](https://velog.velcdn.com/images/pipiolo/post/c8cfa0f2-fcb7-492d-8e21-6398c7d430e3/image.png)
+
+* `@Scope(value = "request")` 👉 `request` 스코프 스프링 빈을 생성한다.
+  * HTTP 요청 당 하나씩 생성되고 요청이 끝나면 종료된다.
+* 오류가 발생한다❗️
+  * 애플리케이션 실행시점에 싱글톤 빈은 생성 및 주입이 가능하지만, `request` 스코프 빈은 아직 생성되지 않는다.
+    * `@Component`는 애플리케이션 실행시점에 자동으로 빈을 생성하고 의존관계를 주입한다.
+  * `request` 스코프 빈은 HTTP 요청이 들어와야 생성된다.
+  * HTTP 요청이 들어올 때 까지 빈의 생성을 지연시켜야 한다.
+
+> **참고**
+> 만약 `request` 스코프를 사용하지 않으면 `uuid`, `request` 정보를 매개변수로 넘겨야만 한다. 그 이유는 웹은 동시에 여러 사용자의 요청을 처리하므로 무상태 설계를 해야하기 때문이다.
+>
+> 웹과 관련된 정보가 매개변수로 서비스 계층까지 넘어가게 된다. **서비스 계층은 순수 비지니스 로직으로 특정 기술에 종속되면 안 된다.** 웹 관련 기술들은 컨트롤러 계층에서 끝나야 한다. 데이터 접근 기술은 리포지토리 계층에서 끝나야 한다.
+
+#### ObjectProvider - 해결책 1
+```java
+@Controller
+public class Controller {
+
+	private final ObjectProvider<MyLogger> myLoggerProvider;
+    
+    public void logic() {
+    	MyLogger myLogger = myLoggerProvider.getObject();
+    }
+}
+```
+
+* `ObjectProvider.getObject()` 호출하는 시점까지 `Request` 스코프 빈 생성을 지연시킨다.
+  * `ObjectProvider.getObject()` 호출하는 시점은 HTTP 요청이 진행 중이므로 `Request` 스코프 빈 생성이 정상 처리된다.
+* `Controller`, `Service` 에서 각각 `ObjectProvider.getObject()`를 호출해도 같은 HTTP 요청이면 같은 스프링 빈이 반환된다.
+
+#### 프록시 - 해결책 2
+```java
+@Scope(value = "request", proxyMode = ScopedProxyMode.TARGET_CLASS)
+@Component
+public class MyLogger {
+}
+```
+
+* `proxyMode = ScopedProxyMode.TARGET_CLASS)`
+*  HTTP Request와 상관없이 `MyLogger` 프록시 객체를 만들어 스프링 빈으로 등록한다.
+* 프록시 객체는 요청이 오면 내부에서 진짜 해당 빈을 요청하는 로직이 있다.
+  * 바이트코드 조작 라이브러리 `CGLIB`를 이용해 `MyLogger`를 상속받은 프록시 객체를 생성한다.
+  * 클라이언트는 프록시 객체인지 원본 객체인지 구별할 수 없다. 👉 상속, 다형성
+* 프록시 객체는 `Request` 스코프와 관계가 없다. 마치 싱글톤 빈처럼 동작한다.
+  * 싱글톤을 사용하는 것 같지만 실제로는 다르게 동작한다.
+  
+---
