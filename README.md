@@ -470,3 +470,237 @@ public class MemberServiceImpl implements MemberService {
   * 이를 방지하고자 **스프링 부트는 예외를 발생시킨다.**
   
 ---
+
+# 의존관계 자동 주입
+* 필드 주입
+* 수정자 주입 (setter 주입)
+* 일반 메서드 주입
+* 생성자 주입
+
+## 필드 주입
+```java
+@Component
+public class MemberServiceImpl implements MemberService {
+
+	@Autowired
+	private final MemberRepository memberRepository;
+}
+```
+
+* 필드에 바로 의존 관계를 주입한다.
+* 외부에서 변경이 불가능해서 테스트 하기 어렵다.
+  * DI 프레임워크가 없는 순수 자바 코드 테스트는 불가능하다.
+* <span style="color: #FF8C00">사용하지 말자.</span>
+
+> **참고**
+> 순수한 자바 테스트는 `@Autowired`가 동작하지 않는다. `@SpringBootTest` 스프링 컨테이너를 테스트에 통합한 경우에만 가능하다.
+  
+## 수정자 주입
+```java
+@Component
+public class MemberServiceImpl implements MemberService {
+
+	private final MemberRepository memberRepository;
+    
+    @Autowired
+    public void setMemberRepository(MemberRepository memberRepository) {
+    	this.memberRepository = memberRepository;
+    }
+}
+```
+
+* setter 수정자 메서드를 통해서 의존 관계를 주입한다.
+* 선택, 변경 가능성이 있는 의존 관계에서 사용한다.
+* `@Autowired` 키워드가 필수이다.
+  * `@Autowired`의 기본 동작은 주입할 대상이 없으면 오류가 발생한다. 
+    * 주입할 대상이 스프링 빈으로 등록되어 있지 않다는 것이다.
+  * `@Autowired(required = false)`로 지정하면 주입할 대상이 없어도 동작한다.
+
+> **참고**
+> 의존 관계 자동 주입은 스프링 컨테이너가 관리하는 스프링 빈이어야 한다. 스프링 빈이 아니면 동작하지 않는다.
+
+## 일반 메서드 주입
+* 일반 메서드를 통해서 의존 관계를 주입한다.
+  * 사실 수정자 주입과 다르지 않다.
+* 한 번에 여러 필드를 주입할 수 있다.
+* 잘 사용하지 않는다.
+
+## 생성자 주입
+```java
+@Component
+public class MemberServiceImpl implements MemberService {
+
+	private final MemberRepository memberRepository;
+    
+    // @Autowired
+    public MemberServiceImpl(MemberRepository memberRepository) {
+    	this.memberRepository = memberRepository;
+    }
+}
+```
+
+* 생성자를 통해서 의존 관계를 주입받는다.
+  * 딱 1번만 호출되는 것이 보장된다.
+  * **생성자가 딱 1개만 있으면, 스프링 빈은 `@Autowired`를 생략해도 자동 주입된다. **
+* 불변, 필수 의존 관계에서 사용한다.
+  * `final` 키워드를 사용한다.
+* <span style="color: #FF8C00">항상 생성자 주입을 사용하자.</span>
+
+### 불변
+* 대부분의 의존 관계는 변경할 일이 없다. 오히려 변하면 안 된다. 불변해야 한다.
+* 수정자 주입은 `setXXX()` 메서드를 `public`으로 열어두어야 한다.
+  * 누군가 실수로 변경할 수 있다. 좋은 설계가 아니다.
+  
+### 누락
+* 생성자를 사용하기 때문에 의존 관계가 누락된 경우 컴파일 오류가 발생한다.
+  * `IDE`에서 어떤 값을 주입해야 하는지 바로 알 수 있다.
+* 수정자 주입은 의존관계 주입 메서드를 누락한 경우, 런타임 오류가 발생한다.
+
+### final 키워드
+* 필드에 `final` 키워드를 사용할 수 있다.
+* 생성자에서 값이 누락되는 오류를 컴파일 시점에 막아준다.
+  * 나머지 주입 방식은 모두 생성자 이후에 호출되므로 `final` 키워드를 사용할 수 없다. 
+
+> **참고**
+> 세상에서 제일 좋은 오류는 컴파일 오류이다.
+> 애플리케이션 실행 시점(런타임)에 알려주는 오류가 그나마 낫다.
+> 사용자가 직접 실행하는 시점(런타임)에 알려주는 오류는 최악이다.
+
+> **참고**
+> 기본으로 생성자 주입을 선택한다. 선택이나 변경이 필요한 경우에만 수정자 주입을 옵션으로 제공한다.
+
+## @Autowired
+### 빈이 2개 이상 조회될 때 - 문제점
+```java
+@Autowired
+private DiscountPolicy discountPolicy
+```
+
+* `@Autowired`는 타입으로 조회한다.
+  * `getBean(DiscountPolicy.class)`와 유사하게 동작한다. 실제로는 더 많은 기능을 제공한다.
+* 조회되는 빈이 2개 이상일 때 문제가 발생한다.
+  * `NoUniqueBeanDefinitionException` 예외가 발생한다.
+  * `FixDiscountPolicy`, `RateDiscountPolicy` 중 어떤 구현체를 선택해야할지 정해야 한다.
+
+
+### 해결책
+* `@Autowired` 필드 명 매칭
+* `@Qualifier` 
+* `@Primary`
+
+#### @Autowired 필드 명 매칭
+```java
+@Autowired
+private DiscountPolicy rateDiscountPolicy
+```
+* `@Autowired` 매칭
+  * 타입 매칭으로 조회한다.
+  * 결과가 2개 이상일 때, 필드 명∙파라미터 명으로 스프링 빈 이름을 조회한다.
+* 필드 명 매칭은 먼저 타입 매칭을 시도하고 그 결과에 따라 추가 동작하는 기능이다.
+
+#### @Qualifier
+```java
+@Component
+@Qualifier("mainDiscountPolicy")
+public class RateDiscountPolicy implements DiscountPolicy{}
+
+@Component
+@Qualifier("fixDiscountPolicy")
+public class FixDiscountPolicy implements DiscountPolicy{}
+
+@Component
+public class OrderServieImpl implements OrderServie {
+
+	private final DiscountPolicy discountPolicy;
+    
+    @Autowired
+	public OrderServieImpl(@Qualifier("mainDiscountPolicy") DiscountPolicy discountPolicy) {
+    	this.discountPolicy = discountPolicy;
+    }
+}
+```
+
+* `@Qualifier` 매핑
+  * `@Qualifier`끼리 매칭
+  * 스프링 빈 이름 매칭
+  * `NoSuchBeanDefinitionException` 예외 발생
+* `@Qualifier` 추가 구분자를 붙여준다. 스프링 빈 이름을 변경하는 것이 아니다.
+* `@Qualifier`는 `@Qualifier`를 찾는 용도로만 사용하자.
+  * `@Qualifier`의 이름을 못 찾는 경우 스프링 빈 이름을 조회하지만, <span style="color: #FF8C00">사용하지 말자.</span>
+
+```java
+@Qualifier("mainDiscountPolicy")
+public @interface MainDiscountPolicy{}
+
+@Component
+@MainDiscountPolicy
+public class RateDiscountPolicy implements DiscountPolicy{}
+```
+
+```java
+@Autowired
+public OrderServiceImpl(@MainDiscountPolicy DiscountPolicy discountPolicy) {
+	this.discountPolicy = discountPolicy;
+}
+```
+
+* `@Qualifier()`에 문자를 적으면 컴파일시 타입 체크가 안 된다.
+  * 애노테이션을 만들어서 사용하자.
+* 자바 애노테이션은 상속 개념이 없다. 여러 애노테이션을 모아서 사용하는 기능은 스프링이 지원한다.
+  
+#### @Primary
+```java
+@Component
+@Primary
+public class RateDiscountPolicy implements DiscountPolicy{}
+
+@Component
+public class FixDiscountPolicy implements DiscountPolicy{}
+```
+* `@Primary`는 우선권을 부여한다.
+
+#### @Qualifier vs @Primary
+
+* `@Primary`는 메인 스프링 빈에 사용하자.
+* `@Qualifier`는 서브 스프링 빈에 지정해서 명시적으로 획득하자.
+  * `@Primary`보다 `@Qualifier`가 우선 순위가 높다.
+
+### 여러 빈을 조회할 때
+```java
+@Component
+public class OrderServiceImpl implements OrderService {
+
+	private List<DiscountPolicy> discountList;
+	private final Map<String, DiscountPolicy> discountMap;
+    
+    public OrderServiceImpl(List<DiscountPolicy> discountList,
+                            Map<String, DiscountPolicy> discountMap
+    ) {
+    	this.discountList = discountList;
+    	this.discountMap = discountMap;
+    }
+}
+```
+
+* `Map<String, DiscountPolicy>` 
+   👉 `Key`에 스프링 빈 이름을 넣는다.
+   👉 `Value`에 스프링 빈을 넣는다.
+* `List<DiscountPolicy>`
+   👉 `DiscountPolicy` 타입으로 조회한 모든 스프링 빈을 넣는다.
+   
+## 자동∙수동 빈 등록
+* 애플리케이션은 업무 로직과 기술 지원 로직으로 나뉜다.
+* 업무 로직 👉 자동 빈 등록
+  * 컨트롤러, 서비스 (비지니스 로직), 데이터 계층 등 비지니스 요구사항을 개발하는 기술들이다.
+  * 등록되는 빈 숫자도 많고 유사한 패턴을 가지고 있다. 문제 원인이 명확하다.
+    👉 자동 기능을 적극 사용하자.
+* 기술 지원 로직 👉 수동 빈 등록
+  * 기술적인 문제나 공통 관심사(`AOP`)를 처리할 때 사용된다.
+  * 데이터베이스 연결, 공통 로그 처리 등 업무 로직을 지원하기 위한 공통 기술들이다.
+  * 빈 숫자도 매우 적고 광범위하게 영향을 미친다. 문제 원인을 찾기가 어렵다.
+    👉 명시적으로 수동 빈 등록을 사용하자.
+
+> **정리**
+> 애플리케이션에 광범위하게 영향을 주는 기술 지원 객체는 수동 빈 등록으로 설정 정보를 명확하게 하는 것이 좋다. 다형성을 적극 활용하는 비지니스 로직일 경우, 수동 등록도 고민해보자. 그 외에는 자동 빈 등록을 사용하자.
+
+---
